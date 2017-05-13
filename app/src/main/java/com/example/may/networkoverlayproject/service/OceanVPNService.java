@@ -7,28 +7,23 @@ import android.util.Log;
 
 import com.github.davidmoten.rx.Bytes;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.Callable;
 
-import io.reactivex.Observer;
-
 
 import rx.Observable;
 import rx.Subscriber;
-import rx.functions.Action1;
 import rx.schedulers.Schedulers;
-
-import static android.R.attr.start;
-import static android.R.attr.x;
 
 
 /**
@@ -42,7 +37,8 @@ public class OceanVPNService extends VpnService{
     private String REMOTE_ADDR = "104.154.153.166";
     private int REMOTE_PORT = 8888;
     Selector selector;
-    SocketChannel tcpChannel = null;
+    //SocketChannel tcpChannel = null;
+    //Socket tcpSocket = null;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startID){
@@ -61,28 +57,46 @@ public class OceanVPNService extends VpnService{
         try {
             Log.d("OceanVPN", "creating channel");
 
-            connect(REMOTE_ADDR, REMOTE_PORT).subscribeOn(Schedulers.io()).forEach(socket -> {
-                readFromSocket(socket).subscribeOn(Schedulers.io())
-                        .forEach(bytes -> {Log.d("reading: ", String.valueOf(bytes.length));
+            connect(REMOTE_ADDR, REMOTE_PORT).subscribeOn(Schedulers.newThread()).forEach(socket -> {
+                Log.d("Got socket", socket.toString());
+                readFromSocket(socket).subscribeOn(Schedulers.newThread())
+                        .forEach(bytes -> {
+                            Log.d("reading: ", String.valueOf(bytes.length));
                             try {
                                 out.write(bytes) ;
                             } catch (IOException e) {
                                 e.printStackTrace();
                             }
                         } );
-                // replace log.d with out.write(bytes)
+                DataOutputStream outputStream = null;
+                try {
+                    outputStream = new DataOutputStream(socket.getOutputStream());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                DataOutputStream finalOutputStream = outputStream;
+                dataReady().subscribeOn(Schedulers.newThread()).forEach(packet -> {
 
+                    if (packet.length == 0)
+                        return;
+                    //Log.d("dataready", "got data" + packet.toString());
+                    if(socket.isConnected()){
+                        //Log.d("in write socket", "tcp is connected");
+                        try {
 
-                dataReady().subscribeOn(Schedulers.io()).forEach(packet -> {
-                    writeToSocket(packet).observeOn(Schedulers.io());
+                            Log.d("received packet: ", packet.toString());
+                            finalOutputStream.writeShort(packet.length);
+                            finalOutputStream.writeShort(0);
+                            finalOutputStream.write(packet);
+                            Log.d("writing to tcp socket", " packet len: " + String.valueOf(packet.length) + " Packet: " + packet.toString() );
+                            Log.d("connectino details: ", socket.toString());
+
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
                 });
 
-                //in the next line, add an observable for if data to write, which returns us a byte[]
-                // call another observable that writes to the network on the socket
-
-
-                // dataReady().subscribeOn(Schedulers.io())
-                //              .forEach(packet -> socket.write(ByteBuffer.wrap(packet)));
 
 
             });
@@ -97,33 +111,42 @@ public class OceanVPNService extends VpnService{
 
     }
 
-    Observable<SocketChannel> connect(String host,int port) {
+    Observable<Socket> connect(String host, int port) {
         // Observable to create a tcp connection
-        return Observable.fromCallable(new Callable<SocketChannel>() {
+        return Observable.fromCallable(new Callable<Socket>() {
             @Override
-            public SocketChannel call() throws Exception {
-                tcpChannel = SocketChannel.open();
-                tcpChannel.configureBlocking(false);
-                tcpChannel.connect(new InetSocketAddress(REMOTE_ADDR, REMOTE_PORT));
-                selector = Selector.open();
-                tcpChannel.register(selector, SelectionKey.OP_CONNECT);
+            public Socket call() throws Exception {
 
-                while(!tcpChannel.isConnected()) {
-                    Log.d("in connect", "returning: " + tcpChannel.toString());
+                Socket tcpSocket = new Socket(REMOTE_ADDR, REMOTE_PORT);
+                while (!tcpSocket.isConnected()){
+                    Log.d("TCP SOCKET", "NOT CONNECTEd " + tcpSocket.toString());
                 }
-                return tcpChannel;
+                return tcpSocket;
             }
         });
     }
 
-    Observable<byte[]> readFromSocket(SocketChannel inputchannel) {
+    Observable<byte[]> readFromSocket(Socket inputchannel) {
+
         return Observable.create(new Observable.OnSubscribe<byte[]>() {
             @Override
             public void call(Subscriber<? super byte[]> subscriber) {
-                ByteBuffer buffer = ByteBuffer.allocate(48);
+
+                Log.d("Read from socket", "creating ovservable");
+
                 try {
-                    inputchannel.read(buffer);
-                    subscriber.onNext(buffer.array());
+
+                    if (inputchannel.isConnected()){
+                        Log.d("Read from socket", "setting up data input stream");
+                        DataInputStream inputStream = new DataInputStream(inputchannel.getInputStream());
+                        while(true) {
+                            short length = inputStream.readShort();
+                            inputStream.readShort();
+                            byte[] inPacket = new byte[length];
+                            inputStream.readFully(inPacket);
+                            subscriber.onNext(inPacket);
+                        }
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -136,23 +159,54 @@ public class OceanVPNService extends VpnService{
     }
 
     Observable<byte[]> dataReady () {
-        FileInputStream in = new FileInputStream(vpnInterface.getFileDescriptor());
-        rx.Observable<byte[]> in_chunks = Bytes.from(in);
-        // change it to packet with headers here
-        return in_chunks;
+        //FileInputStream in = new FileInputStream(vpnInterface.getFileDescriptor());
+        Log.d("Data ready observable", "returning stream");
+        //rx.Observable<byte[]> in_chunks = Bytes.from(in, 512);
+        //return in_chunks;
+
+        return Observable.create(new Observable.OnSubscribe<byte[]>() {
+            @Override
+            public void call(Subscriber<? super byte[]> subscriber) {
+
+                Log.d("Read from input", "creating ovservable");
+
+                try {
+
+
+                    Log.d("Read from input", "setting up data input stream");
+                    FileInputStream in = new FileInputStream(vpnInterface.getFileDescriptor());
+                    ByteBuffer packet = ByteBuffer.allocate(64000);
+                    while(true) {
+                        int length = in.read(packet.array());
+                        if (length > 0) {
+                            // Write the outgoing packet to the tunnel.
+                            packet.limit(length);
+                            byte[] remaining = new byte[packet.remaining()];
+                            packet.get(remaining, 0, remaining.length);
+                            Log.d("Sending packet: ", remaining.toString());
+                            subscriber.onNext(remaining);
+                            packet.clear();
+
+                        }
+
+                    }
+                    } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+
+
+            }
+        });
+
+
     }
 
-    Observable<Void> writeToSocket(byte[] buffer){
+    Observable<Void> writeToSocket(byte[] buffer, Socket socket){
         return Observable.create(new Observable.OnSubscribe<Void>(){
             @Override
             public void call(Subscriber<? super Void> subscriber) {
-                try {
-                    if (tcpChannel.isConnected()) {
-                        tcpChannel.write(ByteBuffer.wrap(buffer));
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+                Log.d("in write socket", "init");
+
             }
 
         });
