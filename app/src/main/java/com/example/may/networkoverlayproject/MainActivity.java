@@ -27,11 +27,7 @@ public class MainActivity extends AppCompatActivity {
         RxView.clicks(inputToggleButton).subscribe(click -> {
             Log.d("tag","Time to toggle!" + click);
             serviceFragment.toggleService();
-        }); // think about creating a subscriber and unsubscribing later?
-        // Note: what happens if one of the toggles is missed, the application might do opposite things!
-
-
-
+        });
     }
 
     @Override
