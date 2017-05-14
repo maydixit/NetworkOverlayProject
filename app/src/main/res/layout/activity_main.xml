@@ -27,4 +27,22 @@
         android:name="com.example.may.networkoverlayproject.service.ServiceFragment"
         />
 
+    <TextView
+        android:text="TextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/inputToggleButton"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="30dp"
+        android:id="@+id/inCount" />
+
+    <TextView
+        android:text="TextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/inCount"
+        android:layout_alignEnd="@+id/inCount"
+        android:layout_marginTop="46dp"
+        android:id="@+id/outCount" />
+
 </RelativeLayout>

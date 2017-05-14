@@ -29,9 +29,12 @@ public class ThreadedVpnService extends VpnService {
     private ParcelFileDescriptor vpnInterface = null;
     private String REMOTE_ADDR = "104.154.153.166";
     private int REMOTE_PORT = 8888;
+    static final long[] incount = {0};
+    static final long[] outcount = {0};
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+
 
         // Start a new session by creating a new thread.
         mThread = new Thread(new Runnable() {
@@ -74,8 +77,7 @@ public class ThreadedVpnService extends VpnService {
                                     dataOutputStream.writeShort(0);
                                     dataOutputStream.write(remaining);
                                     Log.d("OUTGOING", "done writing to dataoutputstream");
-
-
+                                    outcount[0]++ ;
                                 }
                                     Thread.sleep(100);
                                 } catch (IOException e) {
@@ -89,7 +91,7 @@ public class ThreadedVpnService extends VpnService {
                     readThread.start();
 
                     while (!Thread.interrupted()) {
-                        
+
                         Thread.sleep(100);
                             Log.d("INCOMING", "data available");
                             int length = dataInputStream.readShort();
@@ -102,6 +104,7 @@ public class ThreadedVpnService extends VpnService {
                             out.write(data);
                             Log.d("INCOMING", "done writing");
 
+                        incount[0]++;
 
                         Thread.sleep(100);
                     }
@@ -137,4 +140,11 @@ public class ThreadedVpnService extends VpnService {
         super.onDestroy();
     }
 
+
+    public static long getInCount(){
+        return incount[0];
+    }
+    public static long getOutCount(){
+        return outcount[0];
+    }
 }

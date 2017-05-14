@@ -10,8 +10,14 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 
 import com.example.may.networkoverlayproject.R;
+
+import java.util.concurrent.TimeUnit;
+
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
 
 
 /**
@@ -24,7 +30,7 @@ public class ServiceFragment extends Fragment {
 
     private OnFragmentInteractionListener mListener;
     private static  boolean TOGGLE_STATUS = false;
-    private OceanVPNService vpnService;
+    private ThreadedVpnService vpnService;
 
     public ServiceFragment() {
         // Required empty public constructor
@@ -34,7 +40,21 @@ public class ServiceFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // TODO : Create the VPN service instance here
+        Observable.interval(1000L, TimeUnit.MILLISECONDS)
+                .timeInterval()
+                .observeOn(AndroidSchedulers.mainThread())
+                .forEach(value -> {
+                    updateCounts();
+                });
+
+
+        }
+
+    private void updateCounts() {
+        long in = ThreadedVpnService.getInCount();
+        long out = ThreadedVpnService.getOutCount();
+        ((TextView)(getActivity().findViewById(R.id.inCount))).setText("In Count: " + String.valueOf(in));
+        ((TextView)(getActivity().findViewById(R.id.outCount))).setText("Out Count: " + String.valueOf(out));
     }
 
     @Override
