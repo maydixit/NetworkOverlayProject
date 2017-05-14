@@ -1,16 +1,20 @@
 package com.example.may.networkoverlayproject.service;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.Uri;
 import android.net.VpnService;
 import android.os.Bundle;
 import android.app.Fragment;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.example.may.networkoverlayproject.R;
 
@@ -31,6 +35,7 @@ public class ServiceFragment extends Fragment {
     private OnFragmentInteractionListener mListener;
     private static  boolean TOGGLE_STATUS = false;
     private ThreadedVpnService vpnService;
+    private ThreadedVpnService mService;
 
     public ServiceFragment() {
         // Required empty public constructor
@@ -53,8 +58,10 @@ public class ServiceFragment extends Fragment {
     private void updateCounts() {
         long in = ThreadedVpnService.getInCount();
         long out = ThreadedVpnService.getOutCount();
-        ((TextView)(getActivity().findViewById(R.id.inCount))).setText("In Count: " + String.valueOf(in));
-        ((TextView)(getActivity().findViewById(R.id.outCount))).setText("Out Count: " + String.valueOf(out));
+        if(TOGGLE_STATUS) {
+            ((TextView) (getActivity().findViewById(R.id.inCount))).setText("In Count: " + String.valueOf(in));
+            ((TextView) (getActivity().findViewById(R.id.outCount))).setText("Out Count: " + String.valueOf(out));
+        }
     }
 
     @Override
@@ -78,9 +85,24 @@ public class ServiceFragment extends Fragment {
         }
     }
 
+    private boolean bound;
+    ServiceConnection mConnection = new ServiceConnection() {
+
+        public void onServiceDisconnected(ComponentName name) {
+            mService = null;
+            bound = false;
+        }
+
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            ThreadedVpnService.LocalBinder mLocalBinder = (ThreadedVpnService.LocalBinder)service;
+            mService = mLocalBinder.getServerInstance();
+            bound = true;
+        }
+    };
     private void startService(){
         TOGGLE_STATUS = true;
         Intent vpnIntent = VpnService.prepare(getContext());
+
         if (vpnIntent != null)
             startActivityForResult(vpnIntent, 0);
         else {
@@ -89,23 +111,31 @@ public class ServiceFragment extends Fragment {
         }
     }
 
+
+
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data)
     {
         Log.d("Activity result", "Starting service");
         super.onActivityResult(requestCode, resultCode, data);
-        if (getActivity().RESULT_OK == resultCode)
-            getActivity().startService(new Intent(getContext(), ThreadedVpnService.class));
+
+        if (getActivity().RESULT_OK == resultCode) {
+            Intent vpnIntent = new Intent(getContext(), ThreadedVpnService.class);
+            getActivity().bindService(vpnIntent, mConnection, getActivity().BIND_AUTO_CREATE);
+            getActivity().startService(vpnIntent);
+        }
     }
 
     private void stopService(){
         TOGGLE_STATUS = false;
+        mService.stopVpn();
 
     }
 
     public boolean getServiceStatus(){
 
         return TOGGLE_STATUS;
+
 
     }
 
@@ -125,6 +155,15 @@ public class ServiceFragment extends Fragment {
     public void onDetach() {
         super.onDetach();
         mListener = null;
+    }
+
+    @Override
+    public void onStop(){
+        super.onStop();
+        if(bound) {
+            getActivity().unbindService(mConnection);
+            bound = false;
+        }
     }
 
     /**

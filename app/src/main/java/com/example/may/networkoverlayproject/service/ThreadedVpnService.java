@@ -3,6 +3,7 @@ package com.example.may.networkoverlayproject.service;
 import android.app.Service;
 import android.content.Intent;
 import android.net.VpnService;
+import android.os.Binder;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
@@ -22,22 +23,22 @@ public class ThreadedVpnService extends VpnService {
     }
 
 
-    private Thread mThread;
+    private Thread readThread, writeThread;
     private ParcelFileDescriptor mInterface;
-    //a. Configure a builder for the interface.
     Builder builder = new Builder();
     private ParcelFileDescriptor vpnInterface = null;
     private String REMOTE_ADDR = "104.154.153.166";
     private int REMOTE_PORT = 8888;
     static final long[] incount = {0};
     static final long[] outcount = {0};
+    IBinder mBinder = new LocalBinder();
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
 
         // Start a new session by creating a new thread.
-        mThread = new Thread(new Runnable() {
+        readThread = new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -57,7 +58,7 @@ public class ThreadedVpnService extends VpnService {
                     DataInputStream dataInputStream = new DataInputStream(tunnel.getInputStream());
                     DataOutputStream dataOutputStream = new DataOutputStream(tunnel.getOutputStream());
 
-                    Thread readThread = new Thread(new Runnable() {
+                    writeThread = new Thread(new Runnable() {
                         @Override
                         public void run() {
                             while(!Thread.interrupted()){
@@ -88,7 +89,7 @@ public class ThreadedVpnService extends VpnService {
                             }
                         }
                     });
-                    readThread.start();
+                    writeThread.start();
 
                     while (!Thread.interrupted()) {
 
@@ -108,6 +109,7 @@ public class ThreadedVpnService extends VpnService {
 
                         Thread.sleep(100);
                     }
+                    writeThread.interrupt();
 
                 } catch (Exception e) {
                     // Catch any exception
@@ -127,19 +129,36 @@ public class ThreadedVpnService extends VpnService {
         }, "MyVpnRunnable");
 
         //start the service
-        mThread.start();
+        readThread.start();
         return START_STICKY;
     }
 
     @Override
+    public IBinder onBind(Intent intent) {
+        return mBinder;
+    }
+
+
+    @Override
     public void onDestroy() {
         // TODO Auto-generated method stub
-        if (mThread != null) {
-            mThread.interrupt();
+        if (readThread != null) {
+            readThread.interrupt();
         }
         super.onDestroy();
     }
 
+    public void stopVpn(){
+        try {
+            mInterface.close();
+            readThread.interrupt();
+            writeThread.interrupt();
+            stopSelf();
+            //Stop all threads here
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     public static long getInCount(){
         return incount[0];
@@ -147,4 +166,13 @@ public class ThreadedVpnService extends VpnService {
     public static long getOutCount(){
         return outcount[0];
     }
+
+    public class LocalBinder extends Binder {
+        public ThreadedVpnService getServerInstance() {
+            return ThreadedVpnService.this;
+        }
+    }
+
+
 }
+
