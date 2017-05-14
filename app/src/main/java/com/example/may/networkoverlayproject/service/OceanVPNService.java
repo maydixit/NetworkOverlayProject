@@ -42,7 +42,7 @@ public class OceanVPNService extends VpnService{
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startID){
-        super.onStartCommand(intent, flags, startID);
+        //super.onStartCommand(intent, flags, startID);
 
         Log.d("OceanVPN", "oncreate");
 
@@ -53,7 +53,6 @@ public class OceanVPNService extends VpnService{
 
         FileOutputStream out = new FileOutputStream(vpnInterface.getFileDescriptor());
 
-
         try {
             Log.d("OceanVPN", "creating channel");
 
@@ -63,7 +62,8 @@ public class OceanVPNService extends VpnService{
                         .forEach(bytes -> {
                             Log.d("reading: ", String.valueOf(bytes.length));
                             try {
-                                out.write(bytes) ;
+                                out.write(bytes);
+                                Log.d("Writing to vpn", bytes.toString());
                             } catch (IOException e) {
                                 e.printStackTrace();
                             }
@@ -167,12 +167,8 @@ public class OceanVPNService extends VpnService{
         return Observable.create(new Observable.OnSubscribe<byte[]>() {
             @Override
             public void call(Subscriber<? super byte[]> subscriber) {
-
                 Log.d("Read from input", "creating ovservable");
-
                 try {
-
-
                     Log.d("Read from input", "setting up data input stream");
                     FileInputStream in = new FileInputStream(vpnInterface.getFileDescriptor());
                     ByteBuffer packet = ByteBuffer.allocate(64000);
@@ -188,33 +184,14 @@ public class OceanVPNService extends VpnService{
                             packet.clear();
 
                         }
-
                     }
                     } catch (IOException e1) {
                     e1.printStackTrace();
                 }
-
-
             }
         });
 
 
     }
 
-    Observable<Void> writeToSocket(byte[] buffer, Socket socket){
-        return Observable.create(new Observable.OnSubscribe<Void>(){
-            @Override
-            public void call(Subscriber<? super Void> subscriber) {
-                Log.d("in write socket", "init");
-
-            }
-
-        });
-    }
-
-}
-
-class DataPacket{
-    byte[] data;
-    SocketChannel socketChannel;
 }

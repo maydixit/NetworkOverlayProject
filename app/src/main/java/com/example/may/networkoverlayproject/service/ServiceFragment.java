@@ -65,7 +65,7 @@ public class ServiceFragment extends Fragment {
             startActivityForResult(vpnIntent, 0);
         else {
             Log.d("Activity result", "Starting service manually");
-            onActivityResult(0, 10, null);
+            onActivityResult(0, getActivity().RESULT_OK, null);
         }
     }
 
@@ -74,7 +74,8 @@ public class ServiceFragment extends Fragment {
     {
         Log.d("Activity result", "Starting service");
         super.onActivityResult(requestCode, resultCode, data);
-        getActivity().startService(new Intent(getContext(), OceanVPNService.class));
+        if (getActivity().RESULT_OK == resultCode)
+            getActivity().startService(new Intent(getContext(), ThreadedVpnService.class));
     }
 
     private void stopService(){
