@@ -17,7 +17,9 @@
         android:layout_centerVertical="true"
         android:layout_centerHorizontal="true"
         android:id="@+id/inputToggleButton"
-        tools:text="@string/input_toggle_button_text" />
+        tools:text="@string/input_toggle_button_text"
+        android:textOff="@string/toggle_vpn_enable"
+        android:textOn="@string/toggle_vpn_disable" />
 
     <fragment
         android:layout_height="match_parent"
@@ -28,7 +30,7 @@
         />
 
     <TextView
-        android:text="TextView"
+        android:text="@string/input_count"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@+id/inputToggleButton"
@@ -37,7 +39,7 @@
         android:id="@+id/inCount" />
 
     <TextView
-        android:text="TextView"
+        android:text="@string/output_count"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@+id/inCount"
